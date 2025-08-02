@@ -1,0 +1,34 @@
+# Abaikan file kredensial Streamlit lokal
+.streamlit/secrets.toml
+
+# Abaikan file kunci Firebase jika ada (sebagai pengaman tambahan)
+firebase_key.json
+*.json
+
+# Abaikan environment virtual Python
+venv/
+*.venv
+.env
+env/
+
+# Abaikan file cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Abaikan file konfigurasi IDE
+.vscode/
+.idea/
+
+# Abaikan file sistem operasi
+.DS_Store
+Thumbs.db
+
+# Abaikan file log
+*.log
+
+# Abaikan file build dan distribusi
+/dist
+/build
+*.egg-info

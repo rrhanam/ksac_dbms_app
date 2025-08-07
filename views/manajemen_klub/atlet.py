@@ -1,16 +1,16 @@
 import streamlit as st
 import pandas as pd
+import re
 from datetime import datetime
 from utils.database import load_athletes, add_athlete, update_athlete, delete_athlete
 
 # --- Helper Functions ---
-CURRENT_YEAR = 2025 # Sesuaikan dengan tahun kompetisi
-
 def calculate_age_by_year(dob_str):
-    """Menghitung usia berdasarkan tahun kelahiran."""
+    """Menghitung usia berdasarkan tahun kelahiran secara dinamis."""
     try:
         birth_year = datetime.strptime(dob_str, "%Y-%m-%d").year
-        return CURRENT_YEAR - birth_year
+        current_year = datetime.now().year
+        return current_year - birth_year
     except (ValueError, TypeError):
         return 0
 
@@ -22,7 +22,7 @@ def calculate_ku(age):
     elif 12 <= age <= 13: return "KU 3"
     elif 10 <= age <= 11: return "KU 4"
     elif 8 <= age <= 9: return "KU 5"
-    else: return "Di bawah KU"
+    else: return "Pra KU"
 
 # --- Main Page Function ---
 def show_page(db, user_profile):
@@ -36,7 +36,7 @@ def show_page(db, user_profile):
     st.header("Manajemen Daftar Atlet")
 
     with st.expander("➕ Tambah Atlet Baru"):
-        with st.form("add_athlete_form", clear_on_submit=True):
+        with st.form("add_athlete_form", clear_on_submit=False):
             col1, col2 = st.columns(2)
             new_name = col1.text_input("Nama Lengkap Atlet")
             new_dob = col2.date_input("Tanggal Lahir", min_value=datetime(1980, 1, 1), max_value=datetime.now())
@@ -46,10 +46,33 @@ def show_page(db, user_profile):
             new_gender = col4.selectbox("Jenis Kelamin", ["Boy", "Girl"])
             
             if st.form_submit_button("Tambah Atlet", type="primary"):
-                if add_athlete(db, new_name, new_dob, new_level, new_gender):
-                    st.success(f"Atlet '{new_name}' berhasil ditambahkan.")
-                else:
-                    st.error("Gagal menambahkan. Pastikan semua field terisi.")
+                name_to_validate = new_name.strip()
+                is_valid = True
+
+                if not name_to_validate:
+                    st.error("Nama atlet tidak boleh kosong.")
+                    is_valid = False
+                
+                elif len(name_to_validate) < 2:
+                    st.error("Nama atlet harus terdiri dari minimal 2 karakter.")
+                    is_valid = False
+
+                elif not re.match(r"^[a-zA-Z\s]+$", name_to_validate):
+                    st.error("Nama atlet hanya boleh mengandung huruf dan spasi.")
+                    is_valid = False
+
+                if is_valid:
+                    athlete_list = load_athletes(db)
+                    existing_names = [a['name'].strip().lower() for a in athlete_list]
+                    if name_to_validate.lower() in existing_names:
+                        st.error(f"Atlet dengan nama '{name_to_validate}' sudah terdaftar.")
+                        is_valid = False
+
+                if is_valid:
+                    if add_athlete(db, name_to_validate, new_dob, new_level, new_gender, user_profile):
+                        st.success(f"Atlet '{name_to_validate}' berhasil ditambahkan.")
+                    else:
+                        st.error("Terjadi kesalahan saat menyimpan ke database.")
 
     st.divider()
     st.subheader("Daftar Atlet Saat Ini")
@@ -66,12 +89,12 @@ def show_page(db, user_profile):
     df_athletes = pd.DataFrame(athlete_list)
 
     col1, col2, col3 = st.columns(3)
-    search_query = col1.text_input("Cari Nama Atlet", placeholder="Ketik nama untuk mencari...")
+    search_query = col1.text_input("Cari Nama Atlet", placeholder="Ketik nama untuk mencari...", key="atlet_search_query")
     
     level_options = ["Semua Level"] + sorted(list(set([atlet.get('level') for atlet in athlete_list if atlet.get('level') is not None])))
     level_filter = col2.selectbox("Filter Level", level_options)
 
-    ku_options = ["Semua", "KU Senior", "KU 1", "KU 2", "KU 3", "KU 4", "KU 5", "Di bawah KU"]
+    ku_options = ["Semua", "KU Senior", "KU 1", "KU 2", "KU 3", "KU 4", "KU 5", "Pra KU"]
     ku_filter = col3.selectbox("Filter Kelompok Umur", ku_options)
 
     if search_query:
@@ -93,8 +116,8 @@ def show_page(db, user_profile):
     df_paginated = df_athletes.iloc[start_idx:end_idx]
 
     st.dataframe(
-        df_paginated[['name', 'gender', 'level', 'age', 'ku', 'date_of_birth']].rename(
-            columns={'name': 'Nama Atlet', 'gender': 'Jenis Kelamin', 'level': 'Level', 'age': 'Usia', 'ku': 'Kelompok Umur', 'date_of_birth': 'Tanggal Lahir'}
+        df_paginated[['name', 'date_of_birth', 'age', 'ku', 'gender', 'level']].rename(
+            columns={'name': 'Nama Atlet', 'date_of_birth': 'Tanggal Lahir', 'age': 'Usia', 'ku': 'Kelompok Umur', 'gender': 'Jenis Kelamin', 'level': 'Level'}
         ),
         hide_index=True,
         use_container_width=True,
@@ -148,12 +171,29 @@ def show_page(db, user_profile):
                         genders = ["Boy", "Girl"]
                         current_gender_index = genders.index(athlete_data['gender']) if athlete_data.get('gender') in genders else 0
                         edited_gender = col2.selectbox("Jenis Kelamin", genders, index=current_gender_index)
+                        
                         if st.form_submit_button("Update Data", type="primary"):
-                            updated_data = {'name': edited_name, 'date_of_birth': edited_dob.strftime('%Y-%m-%d'), 'level': edited_level, 'gender': edited_gender}
-                            if update_athlete(db, athlete_data['id'], updated_data):
-                                st.toast(f"Data '{edited_name}' berhasil diupdate.", icon="✅")
-                                st.rerun()
-                            else: st.error("Gagal mengupdate data.")
+                            name_to_validate = edited_name.strip()
+                            is_valid = True
+
+                            if not name_to_validate or len(name_to_validate) < 2 or not re.match(r"^[a-zA-Z\s]+$", name_to_validate):
+                                st.error("Nama tidak valid (minimal 2 karakter, hanya huruf/spasi).")
+                                is_valid = False
+                            
+                            if is_valid:
+                                other_athletes = [a for a in athlete_list if a['id'] != athlete_data['id']]
+                                if name_to_validate.lower() in [a['name'].strip().lower() for a in other_athletes]:
+                                    st.error(f"Atlet lain dengan nama '{name_to_validate}' sudah terdaftar.")
+                                    is_valid = False
+                            
+                            if is_valid:
+                                updated_data = {'name': name_to_validate, 'date_of_birth': edited_dob.strftime('%Y-%m-%d'), 'level': edited_level, 'gender': edited_gender}
+                                if update_athlete(db, athlete_data['id'], updated_data, user_profile):
+                                    st.toast(f"Data '{name_to_validate}' berhasil diupdate.", icon="✅")
+                                    st.rerun()
+                                else: 
+                                    st.error("Gagal mengupdate data.")
+                    
                     if st.button("Batal"):
                         st.rerun()
                 edit_dialog()
@@ -172,7 +212,7 @@ def show_page(db, user_profile):
             st.warning(f"Anda yakin ingin menghapus **{athlete_data['name']}** secara permanen?")
             col1, col2 = st.columns(2)
             if col1.button("YA, SAYA YAKIN", type="primary"):
-                if delete_athlete(db, athlete_data['id']):
+                if delete_athlete(db, athlete_data['id'], user_profile, athlete_data['name']):
                     st.toast(f"Atlet '{athlete_data['name']}' berhasil dihapus.", icon="🗑️")
                     st.session_state.deleting_athlete_id = None
                     st.rerun()
@@ -190,20 +230,34 @@ def show_page(db, user_profile):
         export_gender = col3.selectbox("Filter Jenis Kelamin", ["Semua", "Boy", "Girl"], key="export_gender")
 
         if st.button("Buat File CSV untuk Diunduh", use_container_width=True, key="export_athlete_csv"):
-            df_export = df_athletes.copy()
+            df_export_raw = df_athletes.copy()
             
-            # Terapkan filter
             if export_level != "Semua Level":
-                df_export = df_export[df_export['level'].astype(int) == int(export_level)]
+                df_export_raw = df_export_raw[df_export_raw['level'].astype(int) == int(export_level)]
             if export_ku != "Semua":
-                df_export = df_export[df_export['ku'] == export_ku]
+                df_export_raw = df_export_raw[df_export_raw['ku'] == export_ku]
             if export_gender != "Semua":
-                df_export = df_export[df_export['gender'] == export_gender]
+                df_export_raw = df_export_raw[df_export_raw['gender'] == export_gender]
 
-            if df_export.empty:
+            if df_export_raw.empty:
                 st.warning(f"Tidak ada data yang cocok dengan filter yang dipilih.")
             else:
-                csv = df_export.to_csv(index=False).encode('utf-8')
+                df_export_final = df_export_raw.copy()
+                df_export_final.insert(0, 'No', range(1, 1 + len(df_export_final)))
+                
+                final_columns_order = ['No', 'name', 'date_of_birth', 'age', 'ku', 'gender', 'level']
+                df_export_final = df_export_final[final_columns_order]
+                
+                df_export_final = df_export_final.rename(columns={
+                    'name': 'Nama Atlet',
+                    'date_of_birth': 'Tanggal Lahir',
+                    'age': 'Usia',
+                    'ku': 'KU',
+                    'gender': 'Jenis Kelamin',
+                    'level': 'Level'
+                })
+                
+                csv = df_export_final.to_csv(index=False).encode('utf-8')
                 st.session_state.csv_athlete_data = csv
                 st.session_state.csv_athlete_filename = f"laporan_atlet.csv"
 

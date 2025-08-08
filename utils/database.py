@@ -4,6 +4,18 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 from google.cloud.firestore_v1 import DELETE_FIELD
 from firebase_admin import auth as admin_auth
 
+# --- FUNGSI BARU ---
+def check_email_exists(_db, email):
+    """Mengecek apakah email sudah terdaftar di koleksi users."""
+    try:
+        # Mencari dokumen di koleksi 'users' yang field 'email'-nya cocok
+        users_ref = _db.collection('users').where(filter=FieldFilter('email', '==', email)).limit(1).stream()
+        # Jika ada dokumen yang ditemukan, return True
+        return len(list(users_ref)) > 0
+    except Exception as e:
+        st.error(f"Terjadi kesalahan saat validasi email: {e}")
+        return False
+
 # --- FUNGSI LOG AKTIVITAS ---
 def log_activity(_db, user_profile, action):
     try:
@@ -45,7 +57,6 @@ def create_user_account(pyrebase_auth, _db, email, password, display_name, role,
             "created_at": datetime.now()
         }
         
-        # --- PERUBAHAN DI SINI ---
         if role == 'parent' and child_athlete_ids:
             user_profile['child_athlete_ids'] = child_athlete_ids
         
@@ -83,7 +94,6 @@ def update_user_profile(_db, uid, new_data, actor_profile):
                     doc.reference.update({'uid': DELETE_FIELD})
             _db.collection('athletes').document(new_linked_athlete_id).update({'uid': uid})
 
-        # --- PERUBAHAN DI SINI ---
         if new_data.get('child_athlete_ids') is None:
             new_data['child_athlete_ids'] = DELETE_FIELD
 

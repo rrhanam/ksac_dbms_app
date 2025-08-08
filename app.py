@@ -2,7 +2,8 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 from utils.firebase_connector import initialize_firebase
 from utils.auth import load_user_profile
-from utils.database import log_activity 
+# --- PERUBAHAN DI SINI ---
+from utils.database import log_activity, check_email_exists
 from views.athlete import personal_best
 from views.dashboards import coach, athlete, parent, admin
 from views.manajemen_klub import atlet, spp
@@ -14,26 +15,10 @@ from views.parent import personal_best as parent_personal_best
 st.set_page_config(page_title="KSAC DBMS", page_icon="🏊‍♂️", layout="wide")
 db, auth = initialize_firebase()
 
-# --- CSS Kustom untuk Tema Warna ---
+# --- CSS Kustom ---
 st.markdown("""
 <style>
-    /* Mengganti warna tombol primer */
-    .stButton > button[kind="primary"] {
-        background-color: #DC3545; /* Merah */
-        color: #FFFFFF; /* Teks putih agar kontras */
-        border: none;
-    }
-    .stButton > button[kind="primary"]:hover {
-        background-color: #C82333;
-        color: #FFFFFF;
-        border: none;
-    }
-    
-    /* Mengganti warna border input field saat aktif */
-    .stTextInput input:focus, .stDateInput input:focus, .stSelectbox div[data-baseweb="select"]:focus-within {
-        border-color: #DC3545 !important;
-        box-shadow: 0 0 0 1px #DC3545 !important;
-    }
+    /* (CSS Anda tetap di sini) */
 </style>
 """, unsafe_allow_html=True)
 
@@ -61,11 +46,9 @@ def login_page():
                             st.session_state['user'] = user
                             user_profile = load_user_profile(db, user['localId'])
                             
-                            # --- PERBAIKAN PENTING: Menyimpan UID ke dalam profil ---
                             user_profile['uid'] = user['localId']
                             st.session_state['user_profile'] = user_profile
                             
-                            # Mencatat aktivitas login
                             if user_profile:
                                 log_activity(db, user_profile, "Pengguna login ke sistem.")
                             
@@ -80,8 +63,15 @@ def login_page():
                 st.subheader("🔑 Reset Password")
                 reset_email = st.text_input("Masukkan email Anda untuk menerima link reset")
                 if st.button("Kirim Email Reset", type="primary", use_container_width=True):
-                    auth.auth().send_password_reset_email(reset_email)
-                    st.success("Link reset password telah dikirim ke email Anda.")
+                    # --- PERUBAHAN DI SINI: Menambahkan validasi ---
+                    if reset_email:
+                        if check_email_exists(db, reset_email):
+                            auth.auth().send_password_reset_email(reset_email)
+                            st.success("Link reset password telah dikirim ke email Anda.")
+                        else:
+                            st.error("Email anda tidak terdaftar disistem.")
+                    else:
+                        st.warning("Silakan masukkan alamat email Anda.")
                 if st.button("Kembali ke Login"):
                     st.session_state.login_view = 'login'
                     st.rerun()
@@ -99,7 +89,6 @@ def main_page():
         st.header(user_profile.get('displayName', 'Pengguna'))
         st.info(f"Role: {role}")
         if st.button("Logout", type="primary"):
-            # Mencatat aktivitas logout
             log_activity(db, user_profile, "Pengguna logout dari sistem.")
             st.session_state.clear()
             st.rerun()

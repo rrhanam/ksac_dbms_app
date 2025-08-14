@@ -14,9 +14,7 @@ def show_page(db, user_profile):
         
     st.header("Manajemen SPP")
     
-    # --- Memuat Data ---
     athletes = load_athletes(db)
-    # --- PERBAIKAN DI SINI: Mengubah pesan jika tidak ada atlet ---
     if not athletes:
         st.warning("Silahkan input data atlet dulu")
         st.stop()
@@ -76,7 +74,8 @@ def show_page(db, user_profile):
     col_search, col_level, col_status = st.columns(3)
     search_query = col_search.text_input("Cari Nama Atlet", placeholder="Ketik nama...")
     
-    levels = sorted(list(set([atlet.get('level') for atlet in athletes if atlet.get('level') is not None])))
+    # --- PERBAIKAN DI SINI: Mengubah semua level menjadi string sebelum diurutkan ---
+    levels = sorted(list(set([str(atlet.get('level')) for atlet in athletes if atlet.get('level') is not None])))
     level_options = ["Semua Level"] + levels
     level_filter = col_level.selectbox("Filter Level", level_options, key="spp_level_filter")
     
@@ -87,7 +86,8 @@ def show_page(db, user_profile):
     if search_query:
         df_filtered = df_filtered[df_filtered['name'].str.contains(search_query, case=False, na=False)]
     if level_filter != "Semua Level":
-        df_filtered = df_filtered[df_filtered['level'] == level_filter]
+        # --- PERBAIKAN DI SINI: Membandingkan sebagai string ---
+        df_filtered = df_filtered[df_filtered['level'].astype(str) == str(level_filter)]
     if status_filter != "Semua":
         df_filtered = df_filtered[df_filtered['status'] == status_filter]
 
@@ -167,7 +167,7 @@ def show_page(db, user_profile):
                 df_export = pd.DataFrame(export_data)
 
                 if export_level_filter != "Semua Level":
-                    df_export = df_export[df_export['level'] == export_level_filter]
+                    df_export = df_export[df_export['level'].astype(str) == str(export_level_filter)]
                 if export_status_filter != "Semua":
                     df_export = df_export[df_export['status'] == export_status_filter]
 

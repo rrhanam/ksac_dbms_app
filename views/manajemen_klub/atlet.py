@@ -34,6 +34,9 @@ def show_page(db, user_profile):
     if 'current_page' not in st.session_state: st.session_state.current_page = 1
 
     st.header("Manajemen Daftar Atlet")
+    
+    # --- PERUBAHAN DI SINI: Mendefinisikan opsi level ---
+    LEVEL_OPTIONS = ["Pemula", 1, 2, 3, 4, 5]
 
     with st.expander("➕ Tambah Atlet Baru"):
         with st.form("add_athlete_form", clear_on_submit=False):
@@ -42,7 +45,8 @@ def show_page(db, user_profile):
             new_dob = col2.date_input("Tanggal Lahir", min_value=datetime(1980, 1, 1), max_value=datetime.now())
             
             col3, col4 = st.columns(2)
-            new_level = col3.selectbox("Level/Kelompok", [1, 2, 3, 4, 5])
+            # --- PERUBAHAN DI SINI: Menggunakan LEVEL_OPTIONS ---
+            new_level = col3.selectbox("Level/Kelompok", LEVEL_OPTIONS)
             new_gender = col4.selectbox("Jenis Kelamin", ["Boy", "Girl"])
             
             if st.form_submit_button("Tambah Atlet", type="primary"):
@@ -91,8 +95,9 @@ def show_page(db, user_profile):
     col1, col2, col3 = st.columns(3)
     search_query = col1.text_input("Cari Nama Atlet", placeholder="Ketik nama untuk mencari...", key="atlet_search_query")
     
-    level_options = ["Semua Level"] + sorted(list(set([atlet.get('level') for atlet in athlete_list if atlet.get('level') is not None])))
-    level_filter = col2.selectbox("Filter Level", level_options)
+    # --- PERUBAHAN DI SINI: Menggunakan LEVEL_OPTIONS untuk filter ---
+    level_options_for_filter = ["Semua Level"] + LEVEL_OPTIONS
+    level_filter = col2.selectbox("Filter Level", level_options_for_filter)
 
     ku_options = ["Semua", "KU Senior", "KU 1", "KU 2", "KU 3", "KU 4", "KU 5", "Pra KU"]
     ku_filter = col3.selectbox("Filter Kelompok Umur", ku_options)
@@ -100,7 +105,8 @@ def show_page(db, user_profile):
     if search_query:
         df_athletes = df_athletes[df_athletes['name'].str.contains(search_query, case=False, na=False)]
     if level_filter != "Semua Level":
-        df_athletes = df_athletes[df_athletes['level'].astype(int) == int(level_filter)]
+        # --- PERUBAHAN DI SINI: Membandingkan sebagai string agar aman ---
+        df_athletes = df_athletes[df_athletes['level'].astype(str) == str(level_filter)]
     if ku_filter != "Semua":
         df_athletes = df_athletes[df_athletes['ku'] == ku_filter]
 
@@ -167,7 +173,15 @@ def show_page(db, user_profile):
                         except (ValueError, TypeError): dob_date = datetime.now().date()
                         edited_dob = st.date_input("Tanggal Lahir", value=dob_date)
                         col1, col2 = st.columns(2)
-                        edited_level = col1.selectbox("Level", [1, 2, 3, 4, 5], index=int(athlete_data.get('level', 1))-1)
+                        
+                        # --- PERUBAHAN DI SINI: Logika index untuk edit ---
+                        current_level = athlete_data.get('level', "Pemula")
+                        try:
+                            current_level_index = LEVEL_OPTIONS.index(current_level)
+                        except ValueError:
+                            current_level_index = 0 # Default ke Pemula jika tidak ditemukan
+                        edited_level = col1.selectbox("Level", LEVEL_OPTIONS, index=current_level_index)
+                        
                         genders = ["Boy", "Girl"]
                         current_gender_index = genders.index(athlete_data['gender']) if athlete_data.get('gender') in genders else 0
                         edited_gender = col2.selectbox("Jenis Kelamin", genders, index=current_gender_index)
@@ -225,7 +239,7 @@ def show_page(db, user_profile):
     with st.expander("📄 Export Laporan Atlet ke CSV"):
         
         col1, col2, col3 = st.columns(3)
-        export_level = col1.selectbox("Filter Level", level_options, key="export_level")
+        export_level = col1.selectbox("Filter Level", level_options_for_filter, key="export_level")
         export_ku = col2.selectbox("Filter Kelompok Umur", ku_options, key="export_ku")
         export_gender = col3.selectbox("Filter Jenis Kelamin", ["Semua", "Boy", "Girl"], key="export_gender")
 
@@ -233,7 +247,7 @@ def show_page(db, user_profile):
             df_export_raw = df_athletes.copy()
             
             if export_level != "Semua Level":
-                df_export_raw = df_export_raw[df_export_raw['level'].astype(int) == int(export_level)]
+                df_export_raw = df_export_raw[df_export_raw['level'].astype(str) == str(export_level)]
             if export_ku != "Semua":
                 df_export_raw = df_export_raw[df_export_raw['ku'] == export_ku]
             if export_gender != "Semua":

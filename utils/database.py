@@ -207,7 +207,8 @@ def add_performance_record(db, record_data, actor_profile):
     try:
         record_data['created_at'] = datetime.now()
         db.collection('performance_records').add(record_data)
-        log_activity(_db, actor_profile, f"Menambahkan catatan waktu untuk {record_data['athlete_name']}")
+        # --- PERBAIKAN DI SINI: Menggunakan 'db' bukan '_db' ---
+        log_activity(db, actor_profile, f"Menambahkan catatan waktu untuk {record_data['athlete_name']}")
         return True
     except Exception as e:
         st.error(f"Gagal menyimpan catatan waktu: {e}")
@@ -235,7 +236,7 @@ def update_performance_record(db, record_id, new_data, actor_profile, athlete_na
     try:
         new_data['updated_at'] = datetime.now()
         db.collection('performance_records').document(record_id).update(new_data)
-        log_activity(_db, actor_profile, f"Mengupdate catatan waktu untuk {athlete_name}")
+        log_activity(db, actor_profile, f"Mengupdate catatan waktu untuk {athlete_name}")
         return True
     except Exception as e:
         st.error(f"Gagal memperbarui catatan waktu: {e}")
@@ -244,7 +245,7 @@ def update_performance_record(db, record_id, new_data, actor_profile, athlete_na
 def delete_performance_record(db, record_id, actor_profile, athlete_name, time_formatted):
     try:
         db.collection('performance_records').document(record_id).delete()
-        log_activity(_db, actor_profile, f"Menghapus catatan waktu {time_formatted} untuk {athlete_name}")
+        log_activity(db, actor_profile, f"Menghapus catatan waktu {time_formatted} untuk {athlete_name}")
         return True
     except Exception as e:
         st.error(f"Gagal menghapus catatan waktu: {e}")
